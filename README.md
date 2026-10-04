@@ -1,50 +1,72 @@
 # Pitwall
 
-Interactive, single-page race analysis MVP using React, Vite and Recharts.
+Historical F1 analysis with React, Recharts and the Sites Vinext server runtime. No live timing or AI calls. Existing private access is preserved.
 
 ## Run
 
-```sh
-npm install
-npm run dev
+```powershell
+npm.cmd install
+npm.cmd run dev -- --port 5173
 ```
 
-`npm run build` outputs a static production site to `dist/`. `npm test` checks the historical data, missing-lap handling, clean pace and editorial claims. With the preview running on port 5173, `npm run test:browser` checks interactions and mobile layout using installed Microsoft Edge.
+## Supabase
 
-## Data
+Run `supabase/migrations/001_archive.sql` in the SQL Editor. Copy `.env.example` to `.env.local` if needed, then set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to a new `sb_secret_…` key. Restart development after environment changes. Configure the same variables in Sites production settings and mark the key secret before deployment.
 
-`src/data/monza-2024.json` is a historical snapshot of the 1 September 2024 Italian Grand Prix: 20 drivers, 1,008 recorded driver laps, results, tyre stints, weather, track status and race-control messages. It includes FastF1 version, import timestamp and upstream timing path. `src/data.js` derives gaps, clean pace and insight text from this snapshot. There is no simulated race data in the dashboard.
+Keys stay server-side and are sent in the `apikey` header, not as bearer JWTs. No publishable key is needed. The SQL `service_role` grant is intentional: new secret keys use that Postgres role. [Supabase documentation](https://supabase.com/docs/guides/getting-started/api-keys).
 
-The import uses FastF1 3.8.3 because OpenF1 temporarily restricted historical access during a live session. The deployed site does not call either API and does not require a data subscription. It is a fixed historical snapshot, not an automatic or live feed.
+The table has RLS enabled with no anonymous grants; the bucket is private. Supabase Free can pause inactive projects and has no automatic backups. Keep local snapshots. An unavailable cloud archive is identified explicitly; only the saved Italian GP can be opened as a local fallback.
 
-To refresh the snapshot using Python 3.12:
+## Manual imports
 
-```sh
+Use Python 3.11+:
+
+```powershell
 python -m pip install --target .import-deps -r scripts/requirements.txt
-python scripts/import-race.py
-npm test
-npm run build
+# Size trial
+python scripts/import-archive.py --years 2023 --round 1
+# Backfill
+python scripts/import-archive.py --years 2023 2024 2025 2026
+# Upload cached data without contacting FastF1
+python scripts/import-archive.py --publish-only --years 2023 2024 2025 2026
+# Import and publish a weekend
+python scripts/import-archive.py --years 2026 --round 1 --publish
+# Explicit source correction
+python scripts/import-archive.py --years 2024 --round 16 --types R --refresh --publish
 ```
 
-Data methodology:
+Omit years to cover 2023 through the current year. Types `R S Q SQ` cover races, sprints, qualifying and sprint qualifying, including Sprint Shootout. Practice and telemetry are excluded. Existing valid local snapshots are reused unless `--refresh` is supplied.
 
-- Gaps compare timestamps at the same lap number, relative to the earliest crossing of that lap. They are not simultaneous live intervals for lapped cars.
-- Final classification and podium margins use the source results, including penalties. Raw timing gaps intentionally remain unadjusted; for example, Magnussen's final timing gap is 58.302 seconds and classified gap is 68.302 seconds.
-- Missing, uncompleted and FastF1-generated laps are not interpolated. Tsunoda's line ends after lap 7; lapped finishers end after lap 52. Franco Colapinto is included in the actual lineup.
-- A completed stop requires a pit entry followed by an exit. Retirement in the pits is not counted as a stop.
-- Stints preserve consecutive sets of the same compound. Their lengths count race laps on the set; they do not imply that every tyre set was new.
-- Clean pace excludes the opening lap, pit in/out laps, non-green track status, deleted laps and records FastF1 marks inaccurate or generated. No fuel, traffic or tyre-age correction is applied; each driver's eligible-lap count is shown.
-- Weather values average readings during the race. There was no safety car or VSC in the imported track-status records.
+Ignored outputs: `archive/sessions/` contains snapshots; `archive/index.json` tracks import state; `archive/coverage.md` lists availability, missing seasons, file size and publication count; `archive/schedule-status.json` tracks season discovery; `.fastf1-cache/` preserves source responses.
 
-The importer requires network access. It caches source requests in ignored `.fastf1-cache/`; `.import-deps/` is also ignored. The production website serves the checked-in snapshot only. Source: https://github.com/theOehrly/Fast-F1.
+On FastF1 rate limits, wait for the limit window before resuming. Already saved sessions remain usable. Failed imports are unavailable, not cancelled. Events absent from the provider schedule are not inferred to be cancellations; the database/UI can represent independently established cancelled sessions.
 
-## Interactions
+Local snapshots are validated and replaced atomically. Cloud uploads use SHA-256 paths, then update the session pointer. Failure preserves the previous published version. Identical imports reuse the same key/path. Old object versions remain for recovery; monitor quota use before repeated refreshes.
 
-- Select up to five drivers, clear selections, or restore the podium.
-- Hover/tap the chart or use the keyboard-accessible lap slider for exact readings.
-- Toggle event markers and highlight linked race moments.
-- Expand all 20 strategies and click stints to inspect their ending lap.
-- Compare any two different drivers; cross-team selections are labelled.
-- Mobile charts scroll horizontally while the lap slider provides precise inspection.
+## APIs and calculation methods
 
-The race picker contains the one available historical race. Driver colors remain stable across every panel. No application login or runtime data service is required. Google Fonts are optional, with system fallbacks. Hosting remains owner-private at the existing Pitwall URL.
+`GET /api/archive` returns the session index and cloud/local/unavailable mode. `GET /api/archive/:id` loads just one snapshot. The explicit `?local=1` fallback is supported only for `2024-16-R`. Share links use `?session=2023-4-SQ`.
+
+`src/model.js` normalizes data; `src/stories.js` derives evidence records containing session/driver IDs, lap ranges, values, exclusions, source and import time. A future LLM can consume this format.
+
+- Gaps compare crossings of the same lap, not simultaneous live intervals. Missing laps stay missing.
+- Classification/penalties are separate from timing gaps. Unknown/pit-lane grids have no fabricated positions-gained metric.
+- Pit stops require an entry and subsequent exit; retirement in the pits is excluded.
+- Matched pace uses lap numbers eligible for both drivers, excluding opening, pit, non-green, deleted, inaccurate and generated laps. Stories require three paired laps and show sample size. Fuel, traffic and tyre age are not normalized.
+- Qualifying best laps exclude deleted/generated timing and only compare within the selected stage. Final classification is separate from recalculated stage bests.
+- Position changes are observations, not proof of an overtake or a causal strategy claim.
+
+## Checks
+
+```powershell
+npm.cmd test
+python tests/test_importer.py
+npm.cmd run build
+# With local server running; uses Microsoft Edge:
+npm.cmd run test:browser
+```
+
+Tests preserve Monza regressions and cover evidence, matched pace, qualifying, missing storage, downloaded session integrity, retry/repeatability and failure recovery. Browser checks cover selections, hover, sliders, markers, strategy/moment/evidence links, deep links and mobile overflow. Multi-session tests use real downloaded 2023 rounds 4 and 7 as HTTP fixtures; live cloud connectivity is checked separately.
+
+For a single long backfill that waits after source limits, run `python scripts/backfill.py --years 2023 2024 2025 2026`. This is a manually started process, not a recurring scheduler. Progress is in `archive/backfill-status.json`; keep the process/computer running. The checked-in `docs/archive-coverage.md` is the delivery snapshot; `archive/coverage.md` is updated by active imports.
+

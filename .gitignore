@@ -5,3 +5,13 @@ dist/
 .import-deps/
 .fastf1-cache/
 results-source.json
+
+.env*
+!.env.example
+.sites-starter/
+.wrangler/
+.vinext/
+.next/
+archive/
+__pycache__/
+
