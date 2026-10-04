@@ -1,29 +1,50 @@
-// Fictional Monza race. Offsets describe elapsed time relative to a common clock.
-// Lap times, positions, gaps, clean pace, and editorial statistics share this source.
-export const race = {id:'monza-demo',name:'Italian Grand Prix',circuit:'Autodromo Nazionale Monza',location:'Monza, Italy',laps:53,air:27,track:39,sc:[33,36],flagged:[1,37]};
-const entries = [
- ['VER','Max Verstappen','Red Bull',1,'#648aff',24,0],['NOR','Lando Norris','McLaren',4,'#ff9c42',20,5.8],['LEC','Charles Leclerc','Ferrari',2,'#f26372',22,8.6],['PIA','Oscar Piastri','McLaren',5,'#f6cd87',21,12.4],['SAI','Carlos Sainz','Ferrari',3,'#ca8ba1',23,17.1],['HAM','Lewis Hamilton','Mercedes',8,'#59d4bb',25,20.2],['RUS','George Russell','Mercedes',6,'#99e2d7',26,23.7],['PER','Sergio Pérez','Red Bull',7,'#a1b4f3',27,27.9],['ALO','Fernando Alonso','Aston Martin',10,'#5ba88d',19,32.4],['STR','Lance Stroll','Aston Martin',9,'#acd1b5',28,36.1],['TSU','Yuki Tsunoda','RB',12,'#98a2cc',18,39.5],['HUL','Nico Hülkenberg','Haas',11,'#ccd0d5',29,43.2],['RIC','Daniel Ricciardo','RB',14,'#c4a9d6',21,46.8],['GAS','Pierre Gasly','Alpine',13,'#db8bd2',22,49.6],['ALB','Alex Albon','Williams',16,'#61b6d8',23,52.2],['OCO','Esteban Ocon','Alpine',15,'#ae85be',24,55.9],['MAG','Kevin Magnussen','Haas',17,'#ada8a0',25,59.1],['BOT','Valtteri Bottas','Sauber',19,'#95ba67',26,62.3],['ZHO','Zhou Guanyu','Sauber',20,'#c1cf95',27,65.8],['SAR','Logan Sargeant','Williams',18,'#9bc6e8',28,69.4]
-];
-function interpolate(anchors,lap){const i=anchors.findIndex(a=>a[0]>=lap);if(i===0)return anchors[0][1];const a=anchors[i-1],b=anchors[i];return a[1]+(b[1]-a[1])*(lap-a[0])/(b[0]-a[0]);}
-export const drivers=entries.map(([id,name,team,grid,color,pit,finishGap],i)=>{
- const early=i===0?0:i===1?5.4:i===2?2.4: i*2.1;
- const mid=i===0?0:i===1?5.7:i===2?4.1:i*2.5;
- const late=i===0?0:i===1?4.5:i===2?4.0:i*1.4;
- const anchors=[[0,0],[1,(grid-1)*.62],[18,early],[32,mid],[36,i*.72],[43,late],[53,finishGap]];
- const offsets=Array.from({length:54},(_,lap)=>interpolate(anchors,lap)+(lap>=pit?21:0));
- const stints=[{compound:'M',start:1,end:pit},{compound:'H',start:pit+1,end:53}];
- return {id,name,team,grid,color,pits:[pit],stints,offsets};
+import snapshot from './data/monza-2024.json' with {type:'json'};
+// Every chart and metric uses this immutable historical snapshot.
+const colors={VER:'#648aff',NOR:'#ff9c42',LEC:'#f26372',PIA:'#f6cd87',SAI:'#ca8ba1',HAM:'#59d4bb',RUS:'#99e2d7',PER:'#a1b4f3',ALO:'#5ba88d',STR:'#acd1b5',TSU:'#98a2cc',HUL:'#ccd0d5',RIC:'#c4a9d6',GAS:'#db8bd2',ALB:'#61b6d8',OCO:'#ae85be',MAG:'#ada8a0',BOT:'#95ba67',ZHO:'#c1cf95',COL:'#9bc6e8'};
+export const compoundNames={S:'Soft',M:'Medium',H:'Hard',I:'Intermediate',W:'Wet',U:'Unknown'};
+const recorded=snapshot.laps.filter(l=>!l.FastF1Generated&&Number.isFinite(l.Time));
+const raceEnd=Math.max(...recorded.map(l=>l.Time));
+const weather=snapshot.weather.filter(w=>w.Time>=snapshot.event.startTime&&w.Time<=raceEnd);
+const mean=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null;
+export const race={id:'monza-2024',name:snapshot.event.name,circuit:'Autodromo Nazionale di Monza',location:'Monza, Italy',year:2024,date:'1 September 2024',laps:snapshot.event.laps,air:mean(weather.map(w=>w.AirTemp)),track:mean(weather.map(w=>w.TrackTemp)),dry:weather.every(w=>!w.Rainfall),importedAt:snapshot.importedAt,source:snapshot.source};
+export const drivers=snapshot.drivers.map(r=>{
+ const records=recorded.filter(l=>l.Driver===r.Abbreviation).sort((a,b)=>a.LapNumber-b.LapNumber);
+ const completed=records.at(-1)?.LapNumber??0;
+ const groups=Object.groupBy(records,l=>l.Stint);
+ const stints=Object.values(groups).map(ls=>({compound:ls[0].Compound?.[0]??'U',start:ls[0].LapNumber,end:ls.at(-1).LapNumber,startingAge:ls[0].TyreLife,fresh:ls[0].FreshTyre}));
+ // A pit entry without a later exit is a retirement, not a completed stop.
+ const pits=records.filter(l=>l.PitInTime!==null&&records.some(n=>n.PitOutTime!==null&&n.PitOutTime>l.PitInTime)).map(l=>l.LapNumber);
+ return {id:r.Abbreviation,name:r.FullName,team:r.TeamName,grid:r.GridPosition,color:colors[r.Abbreviation]??'#bac1cc',finish:r.Position,status:r.Status,retired:r.ClassifiedPosition==='R',classifiedGap:r.Position===1?0:r.Status==='Finished'?r.Time:null,completed,stints,pits,records};
 });
-const clock=[0];for(let lap=1;lap<=53;lap++)clock[lap]=clock[lap-1]+(lap>=33&&lap<=36?116:82.8-.027*lap+Math.sin(lap*.7)*.14);
-export const laps=Array.from({length:54},(_,lap)=>{
- const ordered=[...drivers].sort((a,b)=>a.offsets[lap]-b.offsets[lap]);const lead=ordered[0].offsets[lap];
- return {lap,...Object.fromEntries(drivers.map(d=>[d.id,+(d.offsets[lap]-lead).toFixed(3)])),positions:Object.fromEntries(ordered.map((d,i)=>[d.id,i+1]))};
+export const results=[...drivers].sort((a,b)=>a.finish-b.finish);
+export const laps=Array.from({length:race.laps+1},(_,lap)=>{
+ const rows=drivers.map(d=>({d,row:d.records.find(l=>l.LapNumber===lap)}));
+ const times=rows.filter(x=>x.row).map(x=>x.row.Time);const leaderTime=times.length?Math.min(...times):null;
+ return {lap,positions:Object.fromEntries(rows.map(({d,row})=>[d.id,row?.Position??null])),...Object.fromEntries(rows.map(({d,row})=>[d.id,row?+Math.max(0,row.Time-leaderTime).toFixed(3):null]))};
 });
-export function metric(d){const clean=Array.from({length:53},(_,i)=>i+1).filter(l=>!(l>=33&&l<=36)&&!race.flagged.includes(l)&&!d.pits.some(p=>l===p||l===p+1));const pace=clean.reduce((s,l)=>s+clock[l]-clock[l-1]+d.offsets[l]-d.offsets[l-1],0)/clean.length;const finish=laps[53].positions[d.id];return {finish,gained:d.grid-finish,pace,count:clean.length};}
-export const results=[...drivers].sort((a,b)=>metric(a).finish-metric(b).finish);
-export const formatPace=n=>`${Math.floor(n/60)}:${(n%60).toFixed(3).padStart(6,'0')}`;
+export const safetyPeriods=snapshot.trackStatus.flatMap((s,i)=>{
+ if(!['4','6','7'].includes(s.Status))return [];
+ const lapAt=t=>results[0].records.find(l=>l.Time>=t)?.LapNumber??race.laps;
+ return [{start:lapAt(s.Time),end:lapAt(snapshot.trackStatus[i+1]?.Time??raceEnd),label:s.Status==='4'?'SC':'VSC'}];
+});
+export function cleanLaps(d){return d.records.filter(l=>l.LapNumber>1&&Number.isFinite(l.LapTime)&&l.LapTime>0&&l.PitInTime===null&&l.PitOutTime===null&&l.TrackStatus==='1'&&l.IsAccurate===true&&!l.Deleted&&!l.FastF1Generated);}
+export function metric(d){const clean=cleanLaps(d);return {finish:d.finish,gained:d.grid-d.finish,pace:mean(clean.map(l=>l.LapTime)),count:clean.length};}
+export const formatPace=n=>Number.isFinite(n)?Math.floor(n/60)+':'+(n%60).toFixed(3).padStart(6,'0'):'—';
+export function gapLabel(d,lap){const gap=laps[lap]?.[d.id];if(Number.isFinite(gap))return gap===0?'Leader':'+'+gap.toFixed(3)+'s';if(lap>d.completed)return d.retired?'Retired · '+d.completed+' laps':'Finished · +'+(race.laps-d.completed)+' lap';return 'No timing data';}
+export function finishLabel(d){return d.retired?'DNF':'P'+d.finish;}
+export const byId=id=>drivers.find(d=>d.id===id);
+const lec=byId('LEC'),pia=byId('PIA'),nor=byId('NOR');
+const firstWindow=[nor.pits[0],pia.pits[0]+1];
+const takeover=lec.records.find(l=>l.LapNumber>pia.pits[1]&&l.Position===1).LapNumber;
+const chaseGap=laps[takeover].PIA;
+const lastStint=lec.stints.at(-1);
 export const moments=[
- {title:'The pit window reshuffles the order',range:[20,25],ids:['VER','NOR','LEC'],tag:'PIT WINDOW',text:`Norris stops on lap ${drivers[1].pits[0]}, two laps before Leclerc. The pit-lap spikes show the time cost; Leclerc is still ahead once both have stopped.`},
- {title:'A safety car resets the gaps',range:[33,36],ids:['VER','NOR','LEC','PIA'],tag:'SAFETY CAR',text:`Norris’s gap shrinks from ${laps[32].NOR.toFixed(1)}s to ${laps[36].NOR.toFixed(1)}s as the field bunches together. Racing resumes on lap 37.`},
- {title:'Norris takes second in the closing laps',range:[43,53],ids:['NOR','LEC','VER'],tag:'LATE RACE',text:`Norris trails Leclerc by ${(laps[43].NOR-laps[43].LEC).toFixed(1)}s on lap 43, but finishes ${(laps[53].LEC-laps[53].NOR).toFixed(1)}s ahead. Verstappen wins by ${laps[53].NOR.toFixed(1)}s.`}
+ {title:'The first stops put Norris ahead of Leclerc',range:[firstWindow[0]-1,firstWindow[1]],ids:['NOR','LEC','PIA'],tag:'FIRST PIT WINDOW',text:'Norris pits on lap '+nor.pits[0]+', Leclerc on '+lec.pits[0]+'. Norris is behind Leclerc before the stops, but ahead by '+(laps[firstWindow[1]].LEC-laps[firstWindow[1]].NOR).toFixed(3)+'s at the end of lap '+firstWindow[1]+'.'},
+ {title:'One stop puts Leclerc in control',range:[nor.pits[1],takeover],ids:['LEC','PIA','NOR','SAI'],tag:'STRATEGY SPLIT',text:'Norris stops again on lap '+nor.pits[1]+', Piastri on '+pia.pits[1]+'. Leclerc stays on his hard tyres and takes the lead on lap '+takeover+', with '+chaseGap.toFixed(3)+'s over Piastri.'},
+ {title:'Piastri closes in, but runs out of laps',range:[takeover,race.laps],ids:['LEC','PIA','NOR'],tag:'THE FINAL CHASE',text:'Piastri reduces his deficit from '+chaseGap.toFixed(3)+'s on lap '+takeover+' to '+pia.classifiedGap.toFixed(3)+'s at the finish. Leclerc completes '+(lastStint.end-lastStint.start+1)+' laps on his final hard-tyre set.'}
+];
+export const insights=[
+ {label:'THE WINNING MARGIN',value:pia.classifiedGap.toFixed(3),unit:'s',title:'Leclerc holds on',text:'Leclerc finishes '+pia.classifiedGap.toFixed(3)+'s ahead of Piastri. Norris completes the podium, '+nor.classifiedGap.toFixed(3)+'s behind the winner.',moment:2,link:'Explore the closing laps'},
+ {label:'THE STRATEGY DIFFERENCE',value:String(lastStint.end-lastStint.start+1),unit:'laps',title:'One set to the flag',text:'Leclerc makes '+lec.pits.length+' stop; both McLarens make '+pia.pits.length+'. His final hard stint runs from lap '+lastStint.start+' through '+lastStint.end+'.',moment:1,link:'See the strategy split'},
+ {label:'THE FINAL CHASE',value:(chaseGap-pia.classifiedGap).toFixed(3),unit:'s',title:'Piastri reels in the leader',text:'Piastri cuts Leclerc’s advantage from '+chaseGap.toFixed(3)+'s on lap '+takeover+' to '+pia.classifiedGap.toFixed(3)+'s at the flag, but finishes second.',moment:2,link:'Follow the battle for the win'}
 ];
