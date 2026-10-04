@@ -1,0 +1,3 @@
+import CircuitExplorer from '../../src/CircuitExplorer';
+export const metadata={title:'Monza in miniature — Pitwall',description:'Explore a stylized 3D Monza circuit, its woodland curves and iconic corners.'};
+export default function CircuitPage(){return <><header className="topbar"><a href="/" className="brand"><span className="brandmark">▰</span>pitwall<span className="brandperiod">.</span></a><span className="brandnote">THE RACE, UNDERSTOOD.</span><a href="/" className="circuit-link">Race archive ↗</a></header><main><div className="circuit-page-intro"><a href="/">← Back to the race archive</a><span>MONZA / INTERACTIVE CIRCUIT STUDY</span></div><CircuitExplorer standalone/></main></>}

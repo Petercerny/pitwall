@@ -1,0 +1,8 @@
+{
+  "source": "https://www.openstreetmap.org/api/0.6/map?bbox=9.2768,45.6091,9.3008,45.6341",
+  "retrievedAt": "2026-10-04T15:41:12.589Z",
+  "attribution": "© OpenStreetMap contributors",
+  "license": "ODbL 1.0",
+  "licenseUrl": "https://www.openstreetmap.org/copyright",
+  "notes": "Map footprints and land cover are geographic data; inferred heights and architectural details are approximate."
+}

@@ -1,5 +1,15 @@
 # Pitwall
 
+## 3D circuit explorer
+
+Open `/circuit` for the Monza aerial explorer, or select a Monza race in the archive. `src/CircuitExplorer.jsx` is the reusable React component; `src/circuit-scene.js` manages the Three.js cameras and lifecycle, while `src/circuit-landscape.js` generates the landscape. It includes orbit/zoom controls, five selectable locations, a perspective aerial view, an orthographic track plan, an illustrative car tour, and a geographic SVG fallback when WebGL cannot load. Building footprints, woodland and roads use a bundled OpenStreetMap snapshot. Unrecorded heights, architectural details and individual trees are approximate; the tour is not race telemetry.
+
+Track coordinates are bundled from Tomislav Bacinger's [f1-circuits dataset](https://github.com/bacinger/f1-circuits), with the MIT notice in `src/data/monza-circuit-LICENSE.md`. Location descriptions reference [Monza's circuit guide](https://www.monzanet.it/en/circuit/). No map service or external 3D asset requests are needed at runtime. Circuit geometry checks run with `npm.cmd test`; with the dev server running, use `node tests/circuit-browser.mjs` for interactions, mobile layout and WebGL context-loss recovery.
+
+Refresh the map with `node scripts/import-monza-map.mjs`, or convert an existing OpenStreetMap XML download with `node scripts/import-monza-map.mjs --input archive/maps/monza-2026-10-04.osm`. The importer uses `osmtogeojson` and retains complete polygon rings and holes, selected tags, attribution, source URL and retrieval time. It writes the bundled GeoJSON, small UI provenance record, and downloadable copy at `/maps/monza-surroundings.geojson`. Map data is © OpenStreetMap contributors, ODbL 1.0; heights without explicit measurements and residential roof forms use documented procedural defaults.
+
+Run `node tests/circuit-visual.mjs` for four viewport sizes, label collision checks, detailed-location screenshots, reduced-motion camera switching, rendering budgets, idle/offscreen suspension and a device-specific tour benchmark. Results are summarized in `docs/circuit-validation.md`; generated screenshots and `circuit-performance.json` are ignored.
+
 Historical F1 analysis with React, Recharts and the Sites Vinext server runtime. No live timing or AI calls. Existing private access is preserved.
 
 ## Run

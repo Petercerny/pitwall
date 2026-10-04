@@ -14,4 +14,5 @@ results-source.json
 .next/
 archive/
 __pycache__/
+circuit-performance.json
 
