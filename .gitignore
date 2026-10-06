@@ -16,3 +16,5 @@ archive/
 __pycache__/
 circuit-performance.json
 
+
+replay-performance.json

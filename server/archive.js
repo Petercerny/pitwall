@@ -13,6 +13,16 @@ export function createArchiveStore(env,fetcher=fetch){
   const rows=await request(`/rest/v1/archive_sessions?id=eq.${encodeURIComponent(id)}&select=status,object_path&limit=1`);
   const row=rows[0];if(row?.status!=='available'||!row.object_path)return null;
   return request('/storage/v1/object/pitwall-archive/'+row.object_path.split('/').map(encodeURIComponent).join('/'));
+ },async replayIndex(){return request('/rest/v1/archive_sessions?select=id,year,session_type&replay_object_path=not.is.null&location=ilike.*Monza*&order=year.desc');},async replayManifest(id){
+  if(!/^20\d{2}-\d{1,2}-(R|Q)$/.test(id))return null;
+  const rows=await request(`/rest/v1/archive_sessions?id=eq.${encodeURIComponent(id)}&select=replay_object_path&limit=1`);const path=rows[0]?.replay_object_path;
+  if(!path||!path.startsWith(id+'/replay/')||path.includes('..'))return null;
+  return request('/storage/v1/object/pitwall-archive/'+path.split('/').map(encodeURIComponent).join('/'));
+ },async replayChunk(id,index){
+  if(!Number.isInteger(index)||index<0||index>500)return null;
+  const manifest=await this.replayManifest(id),chunk=manifest?.chunks.find(c=>c.index===index),path=chunk?.objectPath;
+  if(!path||!path.startsWith(id+'/replay/')||path.includes('..'))return null;
+  return request('/storage/v1/object/pitwall-archive/'+path.split('/').map(encodeURIComponent).join('/'));
  }};
 }
 

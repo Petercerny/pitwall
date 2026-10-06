@@ -3,8 +3,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {projectCircuit,createCircuitProjection,measureCircuit,sampleCircuit,distanceToCircuit,circuitLocations,pointInPolygon,roadOffsets} from '../src/circuit-layout.js';
 import {projectMap,generateWoodland} from '../src/circuit-geography.js';
+import {createTerrainSampler,drapeGeometry,subdivideLine} from '../src/circuit-terrain.js';
+import * as THREE from 'three';
 const data=JSON.parse(fs.readFileSync(new URL('../src/data/monza-circuit.json',import.meta.url)));
 const points=projectCircuit(data.features[0].geometry.coordinates),path=measureCircuit(points);
+test('elevation is geographically aligned, interpolated, and fades only at the boundary',()=>{
+ const project=createCircuitProjection(data.features[0].geometry.coordinates),dem=JSON.parse(fs.readFileSync(new URL('../src/data/monza-terrain.json',import.meta.url))),terrain=createTerrainSampler(dem,project);
+ assert.equal(dem.heights.length,dem.columns*dem.rows);assert(dem.maximum>dem.minimum);assert.equal(terrain.height(terrain.bounds.minX,terrain.bounds.minZ),0);
+ for(const p of points){assert(Number.isFinite(terrain.height(p.x,p.z)));assert(terrain.height(p.x,p.z)>=0);assert(terrain.height(p.x,p.z)<=terrain.maximum);}
+ const synthetic=createTerrainSampler({bbox:[0,0,10,10],columns:2,rows:2,heights:[100,110,120,130],minimum:100,maximum:130},([x,z])=>({x:x*10,z:-z*10}));assert.equal(synthetic.elevation(50,-50),115);assert.equal(synthetic.height(50,-50),1.5);
+ const line=subdivideLine([{x:0,z:0},{x:10,z:0}],3);assert.deepEqual(line.at(-1),{x:10,z:0});assert(line.length>2);
+ const g=new THREE.PlaneGeometry(2,2);g.rotateX(-Math.PI/2);drapeGeometry(g,()=>2);const p=g.getAttribute('position');for(let i=0;i<p.count;i++)assert(Math.abs(p.getY(i)-2)<1e-6);g.dispose();
+});
 test('geographic circuit is closed, plausibly scaled, and landmarks lie on it',()=>{
  assert.deepEqual(points[0],points.at(-1));assert(Math.abs(path.length*10-5793)<150);
  for(const location of circuitLocations){const p=points[location.index];assert(Number.isFinite(p.x)&&Number.isFinite(p.z));assert.equal(distanceToCircuit(p.x,p.z,points),0);}

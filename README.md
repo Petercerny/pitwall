@@ -80,3 +80,11 @@ Tests preserve Monza regressions and cover evidence, matched pace, qualifying, m
 
 For a single long backfill that waits after source limits, run `python scripts/backfill.py --years 2023 2024 2025 2026`. This is a manually started process, not a recurring scheduler. Progress is in `archive/backfill-status.json`; keep the process/computer running. The checked-in `docs/archive-coverage.md` is the delivery snapshot; `archive/coverage.md` is updated by active imports.
 
+
+Monza elevation is bundled in `src/data/monza-terrain.json`. Run `node scripts/import-monza-terrain.mjs` to refresh the public AWS Terrain Tiles snapshot. The smoothed regional DEM adds broad relief without vertical exaggeration; it does not resolve surveyed banking or bridge clearance. See `docs/circuit-validation.md` for source attribution and rendering measurements.
+
+### Recorded Monza playback
+
+The circuit explorer now includes detailed procedural F1 cars, up to four-driver best/manual lap comparison, whole-field race replay and aerial driver follow. The 2024 Monza race and qualifying telemetry are bundled; missing position coverage is labelled rather than filled. Playback uses separate, lazily loaded 60-second telemetry chunks and leaves the existing timing archive/backfill unchanged.
+
+With the Python dependencies from `scripts/requirements.txt`, run `python scripts/import-monza-replay.py --year 2024 --types R Q` to import locally (`--refresh` rebuilds, `--year` selects another season). Cloud publication is opt-in with `--publish` after applying `supabase/migrations/002_replay.sql`; no cloud writes are required for the local showcase. See `docs/replay-validation.md` for APIs, source coverage, calibration, device measurements and verification commands.
